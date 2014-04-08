@@ -1,5 +1,5 @@
 config system
-	option hostname	OpenWrt
+	option hostname	RenameMe
 	option timezone	UTC
 
 config timeserver ntp
