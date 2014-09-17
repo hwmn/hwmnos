@@ -1,5 +1,3 @@
-USE_REFRESH=1
-
 x86_get_rootfs() {
 	local rootfsdev
 	local rootfstype
@@ -16,7 +14,7 @@ x86_get_rootfs() {
 }
 
 platform_check_image() {
-	[ "$ARGC" -gt 1 ] && return 1
+	[ "$#" -gt 1 ] && return 1
 
 	case "$(get_magic_word "$1")" in
 		eb48|eb63) return 0;;
@@ -25,10 +23,6 @@ platform_check_image() {
 			return 1
 		;;
 	esac
-}
-
-platform_refresh_partitions() {
-	return 0
 }
 
 platform_copy_config() {

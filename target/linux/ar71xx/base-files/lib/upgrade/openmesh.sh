@@ -27,10 +27,12 @@ cfg_value_get()
 }
 
 # make sure we got uboot-envtools and fw_env.config copied over to the ramfs
+# create /var/lock for the lock "fw_setenv.lock" of fw_setenv
 platform_add_ramfs_ubootenv()
 {
 	[ -e /usr/sbin/fw_printenv ] && install_bin /usr/sbin/fw_printenv /usr/sbin/fw_setenv
 	[ -e /etc/fw_env.config ] && install_file /etc/fw_env.config
+	mkdir -p $RAM_ROOT/var/lock
 }
 append sysupgrade_pre_upgrade platform_add_ramfs_ubootenv
 
@@ -57,13 +59,21 @@ platform_check_image_openmesh()
 	case "$img_board_target" in
 		OM2P)
 			[ "$board" = "om2p" ] && break
+			[ "$board" = "om2pv2" ] && break
 			[ "$board" = "om2p-lc" ] && break
 			[ "$board" = "om2p-hs" ] && break
+			[ "$board" = "om2p-hsv2" ] && break
+			echo "Invalid image board target ($img_board_target) for this platform: $board. Use the correct image for this platform"
+			return 1
+			;;
+		OM5P)
+			[ "$board" = "om5p" ] && break
 			echo "Invalid image board target ($img_board_target) for this platform: $board. Use the correct image for this platform"
 			return 1
 			;;
 		MR600)
 			[ "$board" = "mr600" ] && break
+			[ "$board" = "mr600v2" ] && break
 			echo "Invalid image board target ($img_board_target) for this platform: $board. Use the correct image for this platform"
 			return 1
 			;;
@@ -118,7 +128,7 @@ platform_do_upgrade_openmesh()
 	local kernel_start_addr= kernel_start_addr1= kernel_start_addr2=
 	local kernel_size= kernel_md5=
 	local rootfs_size= rootfs_checksize= rootfs_md5=
-	local kernel_bsize= total_size=7340032
+	local kernel_bsize= total_size=
 	local data_offset=$((64 * 1024)) block_size= offset=
 	local uboot_env_upgrade="/tmp/fw_env_upgrade"
 	local cfg_size= kernel_size= rootfs_size=
@@ -136,11 +146,13 @@ platform_do_upgrade_openmesh()
 	case $img_board_target in
 		OM2P)
 			block_size=$((256 * 1024))
+			total_size=7340032
 			kernel_start_addr1=0x9f1c0000
 			kernel_start_addr2=0x9f8c0000
 			;;
-		MR600)
+		OM5P|MR600)
 			block_size=$((64 * 1024))
+			total_size=7995392
 			kernel_start_addr1=0x9f0b0000
 			kernel_start_addr2=0x9f850000
 			;;

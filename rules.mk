@@ -14,10 +14,7 @@ endif
 include $(TOPDIR)/include/debug.mk
 include $(TOPDIR)/include/verbose.mk
 
-TMP_DIR:=$(TOPDIR)/tmp
-
-GREP_OPTIONS=
-export GREP_OPTIONS
+export TMP_DIR:=$(TOPDIR)/tmp
 
 qstrip=$(strip $(subst ",,$(1)))
 #"))
@@ -38,6 +35,7 @@ ARCH:=$(subst i486,i386,$(subst i586,i386,$(subst i686,i386,$(call qstrip,$(CONF
 ARCH_PACKAGES:=$(call qstrip,$(CONFIG_TARGET_ARCH_PACKAGES))
 BOARD:=$(call qstrip,$(CONFIG_TARGET_BOARD))
 TARGET_OPTIMIZATION:=$(call qstrip,$(CONFIG_TARGET_OPTIMIZATION))
+export EXTRA_OPTIMIZATION:=$(call qstrip,$(CONFIG_EXTRA_OPTIMIZATION))
 TARGET_SUFFIX=$(call qstrip,$(CONFIG_TARGET_SUFFIX))
 BUILD_SUFFIX:=$(call qstrip,$(CONFIG_BUILD_SUFFIX))
 SUBDIR:=$(patsubst $(TOPDIR)/%,%,${CURDIR})
@@ -53,22 +51,26 @@ endif
 
 HOST_FPIC:=-fPIC
 
-ARCH_SUFFIX:=
+ARCH_SUFFIX:=$(call qstrip,$(CONFIG_CPU_TYPE))
 GCC_ARCH:=
 
-ifneq ($(filter -march=armv%,$(TARGET_OPTIMIZATION)),)
-  ARCH_SUFFIX:=_$(patsubst -march=arm%,%,$(filter -march=armv%,$(TARGET_OPTIMIZATION)))
-  GCC_ARCH:=$(patsubst -march=%,%,$(filter -march=armv%,$(TARGET_OPTIMIZATION)))
+ifneq ($(ARCH_SUFFIX),)
+  ARCH_SUFFIX:=_$(ARCH_SUFFIX)
 endif
-ifneq ($(findstring -mips32r2,$(TARGET_OPTIMIZATION)),)
-  ARCH_SUFFIX:=_r2
+ifneq ($(filter -march=armv%,$(TARGET_OPTIMIZATION)),)
+  GCC_ARCH:=$(patsubst -march=%,%,$(filter -march=armv%,$(TARGET_OPTIMIZATION)))
 endif
 ifdef CONFIG_HAS_SPE_FPU
   TARGET_SUFFIX:=$(TARGET_SUFFIX)spe
 endif
+ifdef CONFIG_MIPS64_ABI
+  ifneq ($(CONFIG_MIPS64_ABI_O32),y)
+     ARCH_SUFFIX:=$(ARCH_SUFFIX)_$(call qstrip,$(CONFIG_MIPS64_ABI))
+  endif
+endif
 
 DL_DIR:=$(if $(call qstrip,$(CONFIG_DOWNLOAD_FOLDER)),$(call qstrip,$(CONFIG_DOWNLOAD_FOLDER)),$(TOPDIR)/dl)
-BIN_DIR:=$(TOPDIR)/bin/$(BOARD)
+BIN_DIR:=$(if $(call qstrip,$(CONFIG_BINARY_FOLDER)),$(call qstrip,$(CONFIG_BINARY_FOLDER)),$(TOPDIR)/bin/$(BOARD))
 INCLUDE_DIR:=$(TOPDIR)/include
 SCRIPT_DIR:=$(TOPDIR)/scripts
 BUILD_DIR_BASE:=$(TOPDIR)/build_dir
@@ -81,11 +83,9 @@ ifeq ($(CONFIG_EXTERNAL_TOOLCHAIN),)
   REAL_GNU_TARGET_NAME=$(OPTIMIZE_FOR_CPU)-openwrt-linux$(if $(TARGET_SUFFIX),-$(TARGET_SUFFIX))
   GNU_TARGET_NAME=$(OPTIMIZE_FOR_CPU)-openwrt-linux
   DIR_SUFFIX:=_$(LIBC)-$(LIBCV)$(if $(CONFIG_arm),_eabi)
-  BUILD_DIR:=$(BUILD_DIR_BASE)/target-$(ARCH)$(ARCH_SUFFIX)$(DIR_SUFFIX)$(if $(BUILD_SUFFIX),_$(BUILD_SUFFIX))
-  STAGING_DIR:=$(TOPDIR)/staging_dir/target-$(ARCH)$(ARCH_SUFFIX)$(DIR_SUFFIX)$(if $(BUILD_SUFFIX),_$(BUILD_SUFFIX))
-  BUILD_DIR_TOOLCHAIN:=$(BUILD_DIR_BASE)/toolchain-$(ARCH)$(ARCH_SUFFIX)_gcc-$(GCCV)$(DIR_SUFFIX)
-  TOOLCHAIN_DIR:=$(TOPDIR)/staging_dir/toolchain-$(ARCH)$(ARCH_SUFFIX)_gcc-$(GCCV)$(DIR_SUFFIX)
-  PACKAGE_DIR:=$(BIN_DIR)/packages
+  BIN_DIR:=$(BIN_DIR)$(if $(CONFIG_USE_UCLIBC),,-$(LIBC))
+  TARGET_DIR_NAME = target-$(ARCH)$(ARCH_SUFFIX)$(DIR_SUFFIX)$(if $(BUILD_SUFFIX),_$(BUILD_SUFFIX))
+  TOOLCHAIN_DIR_NAME = toolchain-$(ARCH)$(ARCH_SUFFIX)_gcc-$(GCCV)$(DIR_SUFFIX)
 else
   ifeq ($(CONFIG_NATIVE_TOOLCHAIN),)
     GNU_TARGET_NAME=$(call qstrip,$(CONFIG_TARGET_NAME))
@@ -93,36 +93,42 @@ else
     GNU_TARGET_NAME=$(shell gcc -dumpmachine)
   endif
   REAL_GNU_TARGET_NAME=$(GNU_TARGET_NAME)
-  BUILD_DIR:=$(BUILD_DIR_BASE)/target-$(GNU_TARGET_NAME)$(if $(BUILD_SUFFIX),_$(BUILD_SUFFIX))
-  STAGING_DIR:=$(TOPDIR)/staging_dir/target-$(GNU_TARGET_NAME)$(if $(BUILD_SUFFIX),_$(BUILD_SUFFIX))
-  BUILD_DIR_TOOLCHAIN:=$(BUILD_DIR_BASE)/toolchain-$(GNU_TARGET_NAME)
-  TOOLCHAIN_DIR:=$(TOPDIR)/staging_dir/toolchain-$(GNU_TARGET_NAME)
-  PACKAGE_DIR:=$(BIN_DIR)/packages
+  TARGET_DIR_NAME:=target-$(GNU_TARGET_NAME)$(if $(BUILD_SUFFIX),_$(BUILD_SUFFIX))
+  TOOLCHAIN_DIR_NAME:=toolchain-$(GNU_TARGET_NAME)
 endif
+
+PACKAGE_DIR:=$(BIN_DIR)/packages
+BUILD_DIR:=$(BUILD_DIR_BASE)/$(TARGET_DIR_NAME)
+STAGING_DIR:=$(TOPDIR)/staging_dir/$(TARGET_DIR_NAME)
+BUILD_DIR_TOOLCHAIN:=$(BUILD_DIR_BASE)/$(TOOLCHAIN_DIR_NAME)
+TOOLCHAIN_DIR:=$(TOPDIR)/staging_dir/$(TOOLCHAIN_DIR_NAME)
 STAMP_DIR:=$(BUILD_DIR)/stamp
 STAMP_DIR_HOST=$(BUILD_DIR_HOST)/stamp
 TARGET_ROOTFS_DIR?=$(if $(call qstrip,$(CONFIG_TARGET_ROOTFS_DIR)),$(call qstrip,$(CONFIG_TARGET_ROOTFS_DIR)),$(BUILD_DIR))
 TARGET_DIR:=$(TARGET_ROOTFS_DIR)/root-$(BOARD)
 STAGING_DIR_ROOT:=$(STAGING_DIR)/root-$(BOARD)
 BUILD_LOG_DIR:=$(TOPDIR)/logs
+PKG_INFO_DIR := $(STAGING_DIR)/pkginfo
 
 TARGET_PATH:=$(STAGING_DIR_HOST)/bin:$(subst $(space),:,$(filter-out .,$(filter-out ./,$(subst :,$(space),$(PATH)))))
-TARGET_CFLAGS:=$(TARGET_OPTIMIZATION)$(if $(CONFIG_DEBUG), -g3)
+TARGET_CFLAGS:=$(TARGET_OPTIMIZATION)$(if $(CONFIG_DEBUG), -g3) $(EXTRA_OPTIMIZATION)
 TARGET_CXXFLAGS = $(TARGET_CFLAGS)
+TARGET_ASFLAGS_DEFAULT = $(TARGET_CFLAGS)
+TARGET_ASFLAGS = $(TARGET_ASFLAGS_DEFAULT)
 TARGET_CPPFLAGS:=-I$(STAGING_DIR)/usr/include -I$(STAGING_DIR)/include
 TARGET_LDFLAGS:=-L$(STAGING_DIR)/usr/lib -L$(STAGING_DIR)/lib
 ifneq ($(CONFIG_EXTERNAL_TOOLCHAIN),)
 LIBGCC_S_PATH=$(realpath $(wildcard $(call qstrip,$(CONFIG_LIBGCC_ROOT_DIR))/$(call qstrip,$(CONFIG_LIBGCC_FILE_SPEC))))
 LIBGCC_S=$(if $(LIBGCC_S_PATH),-L$(dir $(LIBGCC_S_PATH)) -lgcc_s)
-LIBGCC_A=$(realpath $(wildcard $(dir $(LIBGCC_S_PATH))/gcc/*/*/libgcc.a))
+LIBGCC_A=$(realpath $(lastword $(wildcard $(dir $(LIBGCC_S_PATH))/gcc/*/*/libgcc.a)))
 else
-LIBGCC_A=$(wildcard $(TOOLCHAIN_DIR)/lib/gcc/*/*/libgcc.a)
+LIBGCC_A=$(lastword $(wildcard $(TOOLCHAIN_DIR)/lib/gcc/*/*/libgcc.a))
 LIBGCC_S=$(if $(wildcard $(TOOLCHAIN_DIR)/lib/libgcc_s.so),-L$(TOOLCHAIN_DIR)/lib -lgcc_s,$(LIBGCC_A))
 endif
 LIBRPC=-lrpc
 LIBRPC_DEPENDS=+librpc
 
-ifneq ($(findstring $(ARCH) , mips64 x86_64 ),)
+ifeq ($(CONFIG_ARCH_64BIT),y)
   LIB_SUFFIX:=64
 endif
 
@@ -159,9 +165,16 @@ TARGET_PATH_PKG:=$(STAGING_DIR)/host/bin:$(TARGET_PATH)
 
 ifeq ($(CONFIG_SOFT_FLOAT),y)
   SOFT_FLOAT_CONFIG_OPTION:=--with-float=soft
-  TARGET_CFLAGS+= -msoft-float
+  ifeq ($(CONFIG_arm),y)
+    TARGET_CFLAGS+= -mfloat-abi=soft
+  else
+    TARGET_CFLAGS+= -msoft-float
+  endif
 else
   SOFT_FLOAT_CONFIG_OPTION:=
+  ifeq ($(CONFIG_arm),y)
+    TARGET_CFLAGS+= -mfloat-abi=hard
+  endif
 endif
 
 export PATH:=$(TARGET_PATH)
@@ -173,6 +186,7 @@ PKG_CONFIG:=$(STAGING_DIR_HOST)/bin/pkg-config
 export PKG_CONFIG
 
 HOSTCC:=gcc
+HOSTCXX:=g++
 HOST_CPPFLAGS:=-I$(STAGING_DIR_HOST)/include
 HOST_CFLAGS:=-O2 $(HOST_CPPFLAGS)
 HOST_LDFLAGS:=-L$(STAGING_DIR_HOST)/lib
@@ -180,11 +194,12 @@ HOST_LDFLAGS:=-L$(STAGING_DIR_HOST)/lib
 TARGET_CC:=$(TARGET_CROSS)gcc
 TARGET_AR:=$(TARGET_CROSS)ar
 TARGET_RANLIB:=$(TARGET_CROSS)ranlib
-TARGET_CXX:=$(if $(CONFIG_INSTALL_LIBSTDCPP),$(TARGET_CROSS)g++,no)
+TARGET_CXX:=$(TARGET_CROSS)g++
 KPATCH:=$(SCRIPT_DIR)/patch-kernel.sh
 SED:=$(STAGING_DIR_HOST)/bin/sed -i -e
 CP:=cp -fpR
 LN:=ln -sf
+XARGS:=xargs -r
 
 INSTALL_BIN:=install -m0755
 INSTALL_DIR:=install -d -m0755
@@ -194,6 +209,7 @@ INSTALL_CONF:=install -m0600
 TARGET_CC_NOCACHE:=$(TARGET_CC)
 TARGET_CXX_NOCACHE:=$(TARGET_CXX)
 HOSTCC_NOCACHE:=$(HOSTCC)
+HOSTCXX_NOCACHE:=$(HOSTCXX)
 export TARGET_CC_NOCACHE
 export TARGET_CXX_NOCACHE
 export HOSTCC_NOCACHE
@@ -202,11 +218,12 @@ ifneq ($(CONFIG_CCACHE),)
   TARGET_CC:= ccache_cc
   TARGET_CXX:= ccache_cxx
   HOSTCC:= ccache $(HOSTCC)
+  HOSTCXX:= ccache $(HOSTCXX)
 endif
 
 TARGET_CONFIGURE_OPTS = \
   AR=$(TARGET_CROSS)ar \
-  AS="$(TARGET_CC) -c $(TARGET_CFLAGS)" \
+  AS="$(TARGET_CC) -c $(TARGET_ASFLAGS)" \
   LD=$(TARGET_CROSS)ld \
   NM=$(TARGET_CROSS)nm \
   CC="$(TARGET_CC)" \
@@ -240,27 +257,20 @@ else
     $(SCRIPT_DIR)/rstrip.sh
 endif
 
-ifeq ($(CONFIG_ENABLE_LOCALE),true)
-  DISABLE_NLS:=--enable-nls
-else
-  DISABLE_NLS:=--disable-nls
-endif
-
 ifeq ($(CONFIG_IPV6),y)
   DISABLE_IPV6:=
 else
   DISABLE_IPV6:=--disable-ipv6
 endif
 
-ifeq ($(CONFIG_TAR_VERBOSITY),y)
-  TAR_OPTIONS:=-xvf -
-else
-  TAR_OPTIONS:=-xf -
-endif
+TAR_OPTIONS:=-xf -
 
 ifeq ($(CONFIG_BUILD_LOG),y)
   BUILD_LOG:=1
 endif
+
+export BISON_PKGDATADIR:=$(STAGING_DIR_HOST)/share/bison
+export M4:=$(STAGING_DIR_HOST)/bin/m4
 
 define shvar
 V_$(subst .,_,$(subst -,_,$(subst /,_,$(1))))
@@ -283,6 +293,24 @@ define locked
 	$(STAGING_DIR_HOST)/bin/flock \
 		$(TMP_DIR)/.$(if $(2),$(strip $(2)),global).flock \
 		-c '$(subst ','\'',$(1))'
+endef
+
+# Recursively copy paths into another directory, purge dangling
+# symlinks before.
+# $(1) => File glob expression
+# $(2) => Destination directory
+define file_copy
+	for src_dir in $(sort $(foreach d,$(wildcard $(1)),$(dir $(d)))); do \
+		( cd $$src_dir; find -type f -or -type d ) | \
+			( cd $(2); while :; do \
+				read FILE; \
+				[ -z "$$FILE" ] && break; \
+				[ -L "$$FILE" ] || continue; \
+				echo "Removing symlink $(2)/$$FILE"; \
+				rm -f "$$FILE"; \
+			done; ); \
+	done; \
+	$(CP) $(1) $(2)
 endef
 
 # file extension

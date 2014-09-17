@@ -20,6 +20,7 @@
 #include <linux/platform_device.h>
 #include <linux/serial_8250.h>
 #include <linux/clk.h>
+#include <linux/sizes.h>
 
 #include <asm/mach-ath79/ath79.h>
 #include <asm/mach-ath79/ar71xx_regs.h>
@@ -39,7 +40,7 @@ static struct resource ath79_mdio0_resources[] = {
 	}
 };
 
-static struct ag71xx_mdio_platform_data ath79_mdio0_data;
+struct ag71xx_mdio_platform_data ath79_mdio0_data;
 
 struct platform_device ath79_mdio0_device = {
 	.name		= "ag71xx-mdio",
@@ -60,7 +61,7 @@ static struct resource ath79_mdio1_resources[] = {
 	}
 };
 
-static struct ag71xx_mdio_platform_data ath79_mdio1_data;
+struct ag71xx_mdio_platform_data ath79_mdio1_data;
 
 struct platform_device ath79_mdio1_device = {
 	.name		= "ag71xx-mdio",
@@ -181,6 +182,7 @@ void __init ath79_register_mdio(unsigned int id, u32 phy_mask)
 	if (ath79_soc == ATH79_SOC_AR9341 ||
 	    ath79_soc == ATH79_SOC_AR9342 ||
 	    ath79_soc == ATH79_SOC_AR9344 ||
+	    ath79_soc == ATH79_SOC_QCA9556 ||
 	    ath79_soc == ATH79_SOC_QCA9558)
 		max_id = 1;
 	else
@@ -195,6 +197,7 @@ void __init ath79_register_mdio(unsigned int id, u32 phy_mask)
 	case ATH79_SOC_AR7241:
 	case ATH79_SOC_AR9330:
 	case ATH79_SOC_AR9331:
+	case ATH79_SOC_QCA9533:
 		mdio_dev = &ath79_mdio1_device;
 		mdio_data = &ath79_mdio1_data;
 		break;
@@ -202,6 +205,7 @@ void __init ath79_register_mdio(unsigned int id, u32 phy_mask)
 	case ATH79_SOC_AR9341:
 	case ATH79_SOC_AR9342:
 	case ATH79_SOC_AR9344:
+	case ATH79_SOC_QCA9556:
 	case ATH79_SOC_QCA9558:
 		if (id == 0) {
 			mdio_dev = &ath79_mdio0_device;
@@ -250,9 +254,13 @@ void __init ath79_register_mdio(unsigned int id, u32 phy_mask)
 		}
 		mdio_data->is_ar934x = 1;
 		break;
+
+	case ATH79_SOC_QCA9533:
+		mdio_data->builtin_switch = 1;
+		break;
+
+	case ATH79_SOC_QCA9556:
 	case ATH79_SOC_QCA9558:
-		if (id == 1)
-			mdio_data->builtin_switch = 1;
 		mdio_data->is_ar934x = 1;
 		break;
 
@@ -355,6 +363,26 @@ static void ar934x_set_speed_ge0(int speed)
 	iounmap(base);
 }
 
+static void qca955x_set_speed_xmii(int speed)
+{
+	void __iomem *base;
+	u32 val = ath79_get_eth_pll(0, speed);
+
+	base = ioremap_nocache(AR71XX_PLL_BASE, AR71XX_PLL_SIZE);
+	__raw_writel(val, base + QCA955X_PLL_ETH_XMII_CONTROL_REG);
+	iounmap(base);
+}
+
+static void qca955x_set_speed_sgmii(int speed)
+{
+	void __iomem *base;
+	u32 val = ath79_get_eth_pll(1, speed);
+
+	base = ioremap_nocache(AR71XX_PLL_BASE, AR71XX_PLL_SIZE);
+	__raw_writel(val, base + QCA955X_PLL_ETH_SGMII_CONTROL_REG);
+	iounmap(base);
+}
+
 static void ath79_set_speed_dummy(int speed)
 {
 }
@@ -412,8 +440,8 @@ static struct resource ath79_eth0_resources[] = {
 	}, {
 		.name	= "mac_irq",
 		.flags	= IORESOURCE_IRQ,
-		.start	= ATH79_CPU_IRQ_GE0,
-		.end	= ATH79_CPU_IRQ_GE0,
+		.start	= ATH79_CPU_IRQ(4),
+		.end	= ATH79_CPU_IRQ(4),
 	},
 };
 
@@ -440,8 +468,8 @@ static struct resource ath79_eth1_resources[] = {
 	}, {
 		.name	= "mac_irq",
 		.flags	= IORESOURCE_IRQ,
-		.start	= ATH79_CPU_IRQ_GE1,
-		.end	= ATH79_CPU_IRQ_GE1,
+		.start	= ATH79_CPU_IRQ(5),
+		.end	= ATH79_CPU_IRQ(5),
 	},
 };
 
@@ -540,6 +568,8 @@ static void __init ath79_init_eth_pll_data(unsigned int id)
 	case ATH79_SOC_AR9341:
 	case ATH79_SOC_AR9342:
 	case ATH79_SOC_AR9344:
+	case ATH79_SOC_QCA9533:
+	case ATH79_SOC_QCA9556:
 	case ATH79_SOC_QCA9558:
 		pll_10 = AR934X_PLL_VAL_10;
 		pll_100 = AR934X_PLL_VAL_100;
@@ -596,6 +626,7 @@ static int __init ath79_setup_phy_if_mode(unsigned int id,
 		case ATH79_SOC_AR7241:
 		case ATH79_SOC_AR9330:
 		case ATH79_SOC_AR9331:
+		case ATH79_SOC_QCA9533:
 			pdata->phy_if_mode = PHY_INTERFACE_MODE_MII;
 			break;
 
@@ -605,12 +636,23 @@ static int __init ath79_setup_phy_if_mode(unsigned int id,
 		case ATH79_SOC_AR9341:
 		case ATH79_SOC_AR9342:
 		case ATH79_SOC_AR9344:
-		case ATH79_SOC_QCA9558:
 			switch (pdata->phy_if_mode) {
 			case PHY_INTERFACE_MODE_MII:
 			case PHY_INTERFACE_MODE_GMII:
 			case PHY_INTERFACE_MODE_RGMII:
 			case PHY_INTERFACE_MODE_RMII:
+				break;
+			default:
+				return -EINVAL;
+			}
+			break;
+
+		case ATH79_SOC_QCA9556:
+		case ATH79_SOC_QCA9558:
+			switch (pdata->phy_if_mode) {
+			case PHY_INTERFACE_MODE_MII:
+			case PHY_INTERFACE_MODE_RGMII:
+			case PHY_INTERFACE_MODE_SGMII:
 				break;
 			default:
 				return -EINVAL;
@@ -645,6 +687,7 @@ static int __init ath79_setup_phy_if_mode(unsigned int id,
 		case ATH79_SOC_AR7241:
 		case ATH79_SOC_AR9330:
 		case ATH79_SOC_AR9331:
+		case ATH79_SOC_QCA9533:
 			pdata->phy_if_mode = PHY_INTERFACE_MODE_GMII;
 			break;
 
@@ -654,10 +697,21 @@ static int __init ath79_setup_phy_if_mode(unsigned int id,
 		case ATH79_SOC_AR9341:
 		case ATH79_SOC_AR9342:
 		case ATH79_SOC_AR9344:
-		case ATH79_SOC_QCA9558:
 			switch (pdata->phy_if_mode) {
 			case PHY_INTERFACE_MODE_MII:
 			case PHY_INTERFACE_MODE_GMII:
+				break;
+			default:
+				return -EINVAL;
+			}
+			break;
+
+		case ATH79_SOC_QCA9556:
+		case ATH79_SOC_QCA9558:
+			switch (pdata->phy_if_mode) {
+			case PHY_INTERFACE_MODE_MII:
+			case PHY_INTERFACE_MODE_RGMII:
+			case PHY_INTERFACE_MODE_SGMII:
 				break;
 			default:
 				return -EINVAL;
@@ -715,6 +769,24 @@ void __init ath79_setup_ar934x_eth_cfg(u32 mask)
 	iounmap(base);
 }
 
+void __init ath79_setup_qca955x_eth_cfg(u32 mask)
+{
+	void __iomem *base;
+	u32 t;
+
+	base = ioremap(QCA955X_GMAC_BASE, QCA955X_GMAC_SIZE);
+
+	t = __raw_readl(base + QCA955X_GMAC_REG_ETH_CFG);
+
+	t &= ~(QCA955X_ETH_CFG_RGMII_EN | QCA955X_ETH_CFG_GE0_SGMII);
+
+	t |= mask;
+
+	__raw_writel(t, base + QCA955X_GMAC_REG_ETH_CFG);
+
+	iounmap(base);
+}
+
 static int ath79_eth_instance __initdata;
 void __init ath79_register_eth(unsigned int id)
 {
@@ -735,6 +807,9 @@ void __init ath79_register_eth(unsigned int id)
 		pdev = &ath79_eth1_device;
 
 	pdata = pdev->dev.platform_data;
+
+	pdata->max_frame_len = 1540;
+	pdata->desc_pktlen_mask = 0xfff;
 
 	err = ath79_setup_phy_if_mode(id, pdata);
 	if (err) {
@@ -865,13 +940,13 @@ void __init ath79_register_eth(unsigned int id)
 			pdata->set_speed = ath79_set_speed_dummy;
 
 			pdata->speed = SPEED_1000;
+			pdata->has_gbit = 1;
 			pdata->duplex = DUPLEX_FULL;
 			pdata->switch_data = &ath79_switch_data;
 
 			ath79_switch_data.phy_poll_mask |= BIT(4);
 		}
 
-		pdata->has_gbit = 1;
 		pdata->is_ar724x = 1;
 
 		if (!pdata->fifo_cfg1)
@@ -885,7 +960,6 @@ void __init ath79_register_eth(unsigned int id)
 	case ATH79_SOC_AR9341:
 	case ATH79_SOC_AR9342:
 	case ATH79_SOC_AR9344:
-	case ATH79_SOC_QCA9558:
 		if (id == 0) {
 			pdata->reset_bit = AR934X_RESET_GE0_MAC |
 					   AR934X_RESET_GE0_MDIO;
@@ -906,6 +980,75 @@ void __init ath79_register_eth(unsigned int id)
 		pdata->has_gbit = 1;
 		pdata->is_ar724x = 1;
 
+		pdata->max_frame_len = SZ_16K - 1;
+		pdata->desc_pktlen_mask = SZ_16K - 1;
+
+		if (!pdata->fifo_cfg1)
+			pdata->fifo_cfg1 = 0x0010ffff;
+		if (!pdata->fifo_cfg2)
+			pdata->fifo_cfg2 = 0x015500aa;
+		if (!pdata->fifo_cfg3)
+			pdata->fifo_cfg3 = 0x01f00140;
+		break;
+
+	case ATH79_SOC_QCA9533:
+		if (id == 0) {
+			pdata->reset_bit = AR933X_RESET_GE0_MAC |
+					   AR933X_RESET_GE0_MDIO;
+			pdata->set_speed = ath79_set_speed_dummy;
+
+			pdata->phy_mask = BIT(4);
+		} else {
+			pdata->reset_bit = AR933X_RESET_GE1_MAC |
+					   AR933X_RESET_GE1_MDIO;
+			pdata->set_speed = ath79_set_speed_dummy;
+
+			pdata->speed = SPEED_1000;
+			pdata->duplex = DUPLEX_FULL;
+			pdata->switch_data = &ath79_switch_data;
+
+			ath79_switch_data.phy_poll_mask |= BIT(4);
+		}
+
+		pdata->ddr_flush = ath79_ddr_no_flush;
+		pdata->has_gbit = 1;
+		pdata->is_ar724x = 1;
+
+		if (!pdata->fifo_cfg1)
+			pdata->fifo_cfg1 = 0x0010ffff;
+		if (!pdata->fifo_cfg2)
+			pdata->fifo_cfg2 = 0x015500aa;
+		if (!pdata->fifo_cfg3)
+			pdata->fifo_cfg3 = 0x01f00140;
+		break;
+
+	case ATH79_SOC_QCA9556:
+	case ATH79_SOC_QCA9558:
+		if (id == 0) {
+			pdata->reset_bit = QCA955X_RESET_GE0_MAC |
+					   QCA955X_RESET_GE0_MDIO;
+			pdata->set_speed = qca955x_set_speed_xmii;
+		} else {
+			pdata->reset_bit = QCA955X_RESET_GE1_MAC |
+					   QCA955X_RESET_GE1_MDIO;
+			pdata->set_speed = qca955x_set_speed_sgmii;
+		}
+
+		pdata->ddr_flush = ath79_ddr_no_flush;
+		pdata->has_gbit = 1;
+		pdata->is_ar724x = 1;
+
+		/*
+		 * Limit the maximum frame length to 4095 bytes.
+		 * Although the documentation says that the hardware
+		 * limit is 16383 bytes but that does not work in
+		 * practice. It seems that the hardware only updates
+		 * the lowest 12 bits of the packet length field
+		 * in the RX descriptor.
+		 */
+		pdata->max_frame_len = SZ_4K - 1;
+		pdata->desc_pktlen_mask = SZ_16K - 1;
+
 		if (!pdata->fifo_cfg1)
 			pdata->fifo_cfg1 = 0x0010ffff;
 		if (!pdata->fifo_cfg2)
@@ -921,6 +1064,7 @@ void __init ath79_register_eth(unsigned int id)
 	switch (pdata->phy_if_mode) {
 	case PHY_INTERFACE_MODE_GMII:
 	case PHY_INTERFACE_MODE_RGMII:
+	case PHY_INTERFACE_MODE_SGMII:
 		if (!pdata->has_gbit) {
 			printk(KERN_ERR "ar71xx: no gbit available on eth%d\n",
 					id);
@@ -943,7 +1087,6 @@ void __init ath79_register_eth(unsigned int id)
 		case ATH79_SOC_AR9341:
 		case ATH79_SOC_AR9342:
 		case ATH79_SOC_AR9344:
-		case ATH79_SOC_QCA9558:
 			if (id == 0)
 				pdata->mii_bus_dev = &ath79_mdio0_device.dev;
 			else
@@ -953,7 +1096,13 @@ void __init ath79_register_eth(unsigned int id)
 		case ATH79_SOC_AR7241:
 		case ATH79_SOC_AR9330:
 		case ATH79_SOC_AR9331:
+		case ATH79_SOC_QCA9533:
 			pdata->mii_bus_dev = &ath79_mdio1_device.dev;
+			break;
+
+		case ATH79_SOC_QCA9556:
+		case ATH79_SOC_QCA9558:
+			/* don't assign any MDIO device by default */
 			break;
 
 		default:
@@ -978,35 +1127,42 @@ void __init ath79_set_mac_base(unsigned char *mac)
 	memcpy(ath79_mac_base, mac, ETH_ALEN);
 }
 
-void __init ath79_parse_mac_addr(char *mac_str)
+void __init ath79_parse_ascii_mac(char *mac_str, u8 *mac)
 {
-	u8 tmp[ETH_ALEN];
 	int t;
 
 	t = sscanf(mac_str, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
-			&tmp[0], &tmp[1], &tmp[2], &tmp[3], &tmp[4], &tmp[5]);
+		   &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
 
 	if (t != ETH_ALEN)
 		t = sscanf(mac_str, "%02hhx.%02hhx.%02hhx.%02hhx.%02hhx.%02hhx",
-			&tmp[0], &tmp[1], &tmp[2], &tmp[3], &tmp[4], &tmp[5]);
+			&mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
 
-	if (t == ETH_ALEN)
-		ath79_set_mac_base(tmp);
-	else
-		printk(KERN_DEBUG "ar71xx: failed to parse mac address "
-				"\"%s\"\n", mac_str);
+	if (t != ETH_ALEN || !is_valid_ether_addr(mac)) {
+		memset(mac, 0, ETH_ALEN);
+		printk(KERN_DEBUG "ar71xx: invalid mac address \"%s\"\n",
+		       mac_str);
+	}
+}
+
+static void __init ath79_set_mac_base_ascii(char *str)
+{
+	u8 mac[ETH_ALEN];
+
+	ath79_parse_ascii_mac(str, mac);
+	ath79_set_mac_base(mac);
 }
 
 static int __init ath79_ethaddr_setup(char *str)
 {
-	ath79_parse_mac_addr(str);
+	ath79_set_mac_base_ascii(str);
 	return 1;
 }
 __setup("ethaddr=", ath79_ethaddr_setup);
 
 static int __init ath79_kmac_setup(char *str)
 {
-	ath79_parse_mac_addr(str);
+	ath79_set_mac_base_ascii(str);
 	return 1;
 }
 __setup("kmac=", ath79_kmac_setup);

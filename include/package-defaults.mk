@@ -21,7 +21,7 @@ define Package/Default
   MDEPENDS:=
   PROVIDES:=
   EXTRA_DEPENDS:=
-  MAINTAINER:=OpenWrt Developers Team <openwrt-devel@openwrt.org>
+  MAINTAINER:=$(PKG_MAINTAINER)
   SOURCE:=$(patsubst $(TOPDIR)/%,%,$(CURDIR))
   ifneq ($(PKG_VERSION),)
     ifneq ($(PKG_RELEASE),)
@@ -32,6 +32,7 @@ define Package/Default
   else
     VERSION:=$(PKG_RELEASE)
   endif
+  ABI_VERSION:=
   ifneq ($(PKG_FLAGS),)
     PKGFLAGS:=$(PKG_FLAGS)
   else
@@ -42,7 +43,6 @@ define Package/Default
   else
     PKGARCH:=$(BOARD)
   endif
-  PRIORITY:=optional
   DEFAULT:=
   MENU:=
   SUBMENU:=
@@ -64,6 +64,7 @@ ifneq ($(strip $(PKG_UNPACK)),)
 endif
 
 EXTRA_CXXFLAGS = $(EXTRA_CFLAGS)
+DISABLE_NLS:=--disable-nls
 
 CONFIGURE_PREFIX:=/usr
 CONFIGURE_ARGS = \

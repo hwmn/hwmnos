@@ -11,15 +11,15 @@ LC_ALL:=C
 LANG:=C
 export TOPDIR LC_ALL LANG
 
+empty:=
+space:= $(empty) $(empty)
+$(if $(findstring $(space),$(TOPDIR)),$(error ERROR: The path to the OpenWrt directory must not include any spaces))
+
 world:
 
 include $(TOPDIR)/include/host.mk
 
 ifneq ($(OPENWRT_BUILD),1)
-  # XXX: these three lines are normally defined by rules.mk
-  # but we can't include that file in this context
-  empty:=
-  space:= $(empty) $(empty)
   _SINGLE=export MAKEFLAGS=$(space);
 
   override OPENWRT_BUILD=1
@@ -40,11 +40,9 @@ else
 
 $(toolchain/stamp-install): $(tools/stamp-install)
 $(target/stamp-compile): $(toolchain/stamp-install) $(tools/stamp-install) $(BUILD_DIR)/.prepared
-$(package/stamp-cleanup): $(target/stamp-compile)
 $(package/stamp-compile): $(target/stamp-compile) $(package/stamp-cleanup)
 $(package/stamp-install): $(package/stamp-compile)
-$(package/stamp-rootfs-prepare): $(package/stamp-install)
-$(target/stamp-install): $(package/stamp-compile) $(package/stamp-install) $(package/stamp-rootfs-prepare)
+$(target/stamp-install): $(package/stamp-compile) $(package/stamp-install)
 
 printdb:
 	@true
@@ -52,7 +50,6 @@ printdb:
 prepare: $(target/stamp-compile)
 
 clean: FORCE
-	$(_SINGLE)$(SUBMAKE) target/linux/clean
 	rm -rf $(BUILD_DIR) $(BIN_DIR) $(BUILD_LOG_DIR)
 
 dirclean: clean
@@ -86,7 +83,7 @@ prereq: $(target/stamp-prereq) tmp/.prereq_packages
 	fi
 
 prepare: .config $(tools/stamp-install) $(toolchain/stamp-install)
-world: prepare $(target/stamp-compile) $(package/stamp-cleanup) $(package/stamp-compile) $(package/stamp-install) $(package/stamp-rootfs-prepare) $(target/stamp-install) FORCE
+world: prepare $(target/stamp-compile) $(package/stamp-compile) $(package/stamp-install) $(target/stamp-install) FORCE
 	$(_SINGLE)$(SUBMAKE) -r package/index
 
 # update all feeds, re-create index files, install symlinks

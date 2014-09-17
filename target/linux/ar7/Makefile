@@ -9,14 +9,15 @@ include $(TOPDIR)/rules.mk
 ARCH:=mipsel
 BOARD:=ar7
 BOARDNAME:=TI AR7
-FEATURES:=squashfs jffs2 atm
+FEATURES:=squashfs atm low_mem
 MAINTAINER:=Florian Fainelli <florian@openwrt.org>
+SUBTARGETS:=generic ac49x
 
-LINUX_VERSION:=3.3.8
+LINUX_VERSION:=3.10.49
 
 include $(INCLUDE_DIR)/target.mk
 
-DEFAULT_PACKAGES+= kmod-mac80211 kmod-acx-mac80211 swconfig wpad-mini
+DEFAULT_PACKAGES+= swconfig
 
 define Target/Description
 	Build firmware images for TI AR7 based routers.

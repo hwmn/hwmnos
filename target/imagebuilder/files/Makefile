@@ -126,23 +126,15 @@ package_index: FORCE
 package_install: FORCE
 	@echo
 	@echo Installing packages...
-	$(OPKG) install $(PACKAGE_DIR)/libc_*.ipk
-	$(OPKG) install $(PACKAGE_DIR)/kernel_*.ipk
+	$(OPKG) install $(firstword $(wildcard $(PACKAGE_DIR)/libc_*.ipk $(PACKAGE_DIR)/base/libc_*.ipk))
+	$(OPKG) install $(firstword $(wildcard $(PACKAGE_DIR)/kernel_*.ipk $(PACKAGE_DIR)/base/kernel_*.ipk))
 	$(OPKG) install $(BUILD_PACKAGES)
 	rm -f $(TARGET_DIR)/usr/lib/opkg/lists/*
 
 copy_files: FORCE
 	@echo
 	@echo Copying extra files
-	@( cd $(USER_FILES); find -type f ) | \
-		( cd $(TARGET_DIR); while :; do \
-			read FILE; \
-			[ -z "$$FILE" ] && break; \
-			[ -L "$$FILE" ] || continue; \
-			echo "Removing symlink $(TARGET_DIR)/$$FILE"; \
-			rm -f "$$FILE"; \
-		done; )
-	$(CP) $(USER_FILES)/* $(TARGET_DIR)/
+	@$(call file_copy,$(USER_FILES)/*,$(TARGET_DIR)/)
 
 package_postinst: FORCE
 	@echo
@@ -157,6 +149,7 @@ package_postinst: FORCE
 			IPKG_INSTROOT=$(TARGET_DIR) $(which bash) ./etc/rc.common $$script enable; \
 		done || true; \
 	)
+	rm -f $(TARGET_DIR)/usr/lib/opkg/info/*.postinst
 	$(if $(CONFIG_CLEAN_IPKG),rm -rf $(TARGET_DIR)/usr/lib/opkg)
 
 build_image: FORCE
