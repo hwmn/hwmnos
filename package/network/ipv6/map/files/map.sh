@@ -52,6 +52,7 @@ proto_map_setup() {
 		fi
 	fi
 
+	echo "rule=$rule" > /tmp/map-$cfg.rules
 	RULE_DATA=$(mapcalc ${tunlink:-\*} $rule)
 	if [ "$?" != 0 ]; then
 		proto_notify_error "$cfg" "INVALID_MAP_RULE"
@@ -59,6 +60,7 @@ proto_map_setup() {
 		return
 	fi
 
+	echo "$RULE_DATA" >> /tmp/map-$cfg.rules
 	eval $RULE_DATA
 	
 	if [ -z "$RULE_BMR" ]; then
@@ -122,19 +124,28 @@ proto_map_setup() {
 	[ "$zone" != "-" ] && json_add_string zone "$zone"
 
 	json_add_array firewall
-	  for portset in $(eval "echo \$RULE_${k}_PORTSETS"); do
-            for proto in icmp tcp udp; do
-	      json_add_object ""
-	        json_add_string type nat
-	        json_add_string target SNAT
-	        json_add_string family inet
-	        json_add_string proto "$proto"
-                json_add_boolean connlimit_ports 1
-                json_add_string snat_ip $(eval "echo \$RULE_${k}_IPV4ADDR")
-                json_add_string snat_port "$portset"
-	      json_close_object
-            done
-	  done
+	  if [ -z "$(eval "echo \$RULE_${k}_PORTSETS")" ]; then
+	    json_add_object ""
+	      json_add_string type nat
+	      json_add_string target SNAT
+	      json_add_string family inet
+	      json_add_string snat_ip $(eval "echo \$RULE_${k}_IPV4ADDR")
+	    json_close_object
+	  else
+	    for portset in $(eval "echo \$RULE_${k}_PORTSETS"); do
+              for proto in icmp tcp udp; do
+	        json_add_object ""
+	          json_add_string type nat
+	          json_add_string target SNAT
+	          json_add_string family inet
+	          json_add_string proto "$proto"
+                  json_add_boolean connlimit_ports 1
+                  json_add_string snat_ip $(eval "echo \$RULE_${k}_IPV4ADDR")
+                  json_add_string snat_port "$portset"
+	        json_close_object
+              done
+	    done
+	  fi
 	  if [ "$type" = "map-t" ]; then
 	  	json_add_object ""
 	  		json_add_string type rule
@@ -179,6 +190,7 @@ proto_map_setup() {
 proto_map_teardown() {
 	local cfg="$1"
 	ifdown "${cfg}_local"
+	rm -f /tmp/map-$cfg.rules
 }
 
 proto_map_init_config() {
