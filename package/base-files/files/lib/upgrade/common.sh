@@ -120,7 +120,7 @@ kill_remaining() { # [ <signal> ]
 		# Skip kernel threads
 		[ -n "$cmdline" ] || continue
 
-		if [ $$ -eq 1 ] || [ $my_ppid -eq 1 ] && [ -n "$my_ppisupgraded" ]; then
+		if [ $$ -eq 1 ] || [ $my_ppid -eq 1 -a -n "$my_ppisupgraded" ]; then
 			# Running as init process, kill everything except me
 			if [ $pid -ne $$ ] && [ $pid -ne $my_ppid ]; then
 				echo -n "$name "
