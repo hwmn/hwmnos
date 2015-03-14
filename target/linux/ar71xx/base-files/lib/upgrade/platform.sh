@@ -383,6 +383,19 @@ platform_check_image() {
 		fi
 		return 0
 		;;
+	rb-750* | \
+	rb-4*)
+		[ "$magic" != "1f8b" ] && {
+			echo "Invalid image. Use .tar.gz files on this board"
+			return 1
+		}
+
+		tar tzf "$1" | grep '\./kernel' >/dev/null || {
+			echo "Invalid image. Tarball should contain a file called 'kernel' in the root directory"
+			return 1
+		}
+		return 0;
+		;;
 	esac
 
 	echo "Sysupgrade is not yet supported on $board."
