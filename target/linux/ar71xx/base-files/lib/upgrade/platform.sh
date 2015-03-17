@@ -385,7 +385,9 @@ platform_check_image() {
 		;;
 	rb-750* | \
 	rb-4*)
-		[ "$magic" != "1f8b" ] && {
+		local orig_magic="$(eval cat "$1" 2>/dev/null | dd bs=2 count=1 2>/dev/null | hexdump -n 2 -e '1/1 "%02x"')"
+
+		[ "$orig_magic" != "1f8b" ] && {
 			echo "Invalid image. Use .tar.gz files on this board"
 			return 1
 		}
@@ -394,7 +396,7 @@ platform_check_image() {
 			echo "Invalid image. Tarball should contain a file called 'kernel' in the root directory"
 			return 1
 		}
-		return 0;
+		return 0
 		;;
 	esac
 
