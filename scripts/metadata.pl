@@ -185,6 +185,7 @@ sub target_config_features(@) {
 		/rfkill/ and $ret .= "\tselect RFKILL_SUPPORT\n";
 		/low_mem/ and $ret .= "\tselect LOW_MEMORY_FOOTPRINT\n";
 		/nand/ and $ret .= "\tselect NAND_SUPPORT\n";
+		/tarball_upgrade/ and $ret .= "\tselect TARBALL_UPGRADE_SUPPORT\n";
 	}
 	return $ret;
 }

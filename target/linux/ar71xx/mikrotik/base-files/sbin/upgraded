@@ -1,6 +1,0 @@
-#!/bin/sh
-
-. /lib/functions.sh
-include /lib/upgrade
-
-mikrotik_nand_upgrade_stage2 $@

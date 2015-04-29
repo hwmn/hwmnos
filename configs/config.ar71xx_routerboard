@@ -73,6 +73,7 @@ CONFIG_USB_SUPPORT=y
 CONFIG_BIG_ENDIAN=y
 CONFIG_USES_TARGZ=y
 CONFIG_HAS_MIPS16=y
+CONFIG_TARBALL_UPGRADE_SUPPORT=y
 CONFIG_mips=y
 CONFIG_ARCH="mips"
 
@@ -3931,6 +3932,7 @@ CONFIG_PACKAGE_libjson-script=y
 # CONFIG_PACKAGE_pcscd is not set
 # CONFIG_PACKAGE_pipacs is not set
 # CONFIG_PACKAGE_powertop is not set
+CONFIG_PACKAGE_procd-tarball-upgrade=y
 # CONFIG_PACKAGE_procps is not set
 # CONFIG_PACKAGE_psmisc is not set
 # CONFIG_PACKAGE_psplash is not set

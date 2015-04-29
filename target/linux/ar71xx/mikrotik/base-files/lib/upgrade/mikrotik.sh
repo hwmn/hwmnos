@@ -39,7 +39,8 @@ mikrotik_nand_do_upgrade_stage2() {
     echo b > /proc/sysrq-trigger
 }
 
-mikrotik_nand_upgrade_stage2() {
+# called by "sysupgrade nand"
+nand_upgrade_stage2() {
     touch /tmp/sysupgrade
 
     killall -9 telnetd
@@ -66,7 +67,7 @@ mikrotik_pre_upgrade_hook() {
     cp /sbin/upgraded /tmp/upgraded
     chmod 755 /tmp/upgraded
 
-    v "Calling procd's nandupgrade"
+    v "Calling procd's nandupgrade with path = $path"
     ubus call system nandupgrade "{\"path\": \"$path\" }"
 
     # will never be reached

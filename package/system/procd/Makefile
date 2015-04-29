@@ -32,7 +32,7 @@ TARGET_LDFLAGS += $(if $(CONFIG_USE_EGLIBC),-lrt)
 define Package/procd
   SECTION:=base
   CATEGORY:=Base system
-  DEPENDS:=+ubusd +ubus +libjson-script +ubox +USE_EGLIBC:librt +libubox +libubus +NAND_SUPPORT:procd-nand
+  DEPENDS:=+ubusd +ubus +libjson-script +ubox +USE_EGLIBC:librt +libubox +libubus +NAND_SUPPORT:procd-nand +TARBALL_UPGRADE_SUPPORT:procd-tarball-upgrade
   TITLE:=OpenWrt system process manager
 endef
 
@@ -41,6 +41,13 @@ define Package/procd-nand
   CATEGORY:=Utilities
   DEPENDS:=@NAND_SUPPORT +ubi-utils
   TITLE:=OpenWrt sysupgrade nand helper
+endef
+
+define Package/procd-tarball-upgrade
+  SECTION:=utils
+  CATEGORY:=Utilities
+  DEPENDS:=@TARBALL_UPGRADE_SUPPORT
+  TITLE:=OpenWrt tarball sysupgrade helper
 endef
 
 define Package/procd/install
@@ -59,5 +66,12 @@ define Package/procd-nand/install
 	$(INSTALL_DATA) ./files/nand.sh $(1)/lib/upgrade/
 endef
 
+define Package/procd-tarball-upgrade/install
+	$(INSTALL_DIR) $(1)/sbin
+
+	$(CP) $(PKG_INSTALL_DIR)/usr/sbin/upgraded $(1)/sbin/
+endef
+
 $(eval $(call BuildPackage,procd))
 $(eval $(call BuildPackage,procd-nand))
+$(eval $(call BuildPackage,procd-tarball-upgrade))
