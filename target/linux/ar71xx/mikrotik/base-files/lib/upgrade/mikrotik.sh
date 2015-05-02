@@ -53,7 +53,7 @@ nand_upgrade_stage2() {
 
     sleep 1
 
-    run_ramfs ". /lib/functions.sh; include /lib/upgrade; mikrotik_nand_do_upgrade_stage2 $1"
+    run_ramfs ". /lib/functions.sh; include /lib/upgrade; mikrotik_nand_do_upgrade_stage2 $2"
 }
 
 mikrotik_pre_upgrade_hook() {
