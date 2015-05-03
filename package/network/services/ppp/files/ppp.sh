@@ -183,7 +183,8 @@ proto_pptp_setup() {
 	local ip serv_addr server
 	json_get_var server server && {
 		for ip in $(resolveip -t 5 "$server"); do
-			( proto_add_host_dependency "$config" "$ip" )
+			# HwmnOS disabled
+			#( proto_add_host_dependency "$config" "$ip" )
 			serv_addr=1
 		done
 	}
